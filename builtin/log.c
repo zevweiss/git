@@ -1839,21 +1839,6 @@ static void infer_range_diff_ranges(struct strbuf *r1,
 	}
 }
 
-static void recipients_to_header_buf(const char *hdr, struct strbuf *buf,
-				     const struct string_list *recipients)
-{
-	for (int i = 0; i < recipients->nr; i++) {
-		if (!i)
-			strbuf_addf(buf, "%s: ", hdr);
-		else
-			strbuf_addstr(buf, "    ");
-		strbuf_addstr(buf, recipients->items[i].string);
-		if (i + 1 < recipients->nr)
-			strbuf_addch(buf, ',');
-		strbuf_addch(buf, '\n');
-	}
-}
-
 int cmd_format_patch(int argc, const char **argv, const char *prefix)
 {
 	struct commit *commit;
@@ -2043,9 +2028,8 @@ int cmd_format_patch(int argc, const char **argv, const char *prefix)
 		strbuf_addch(&buf, '\n');
 	}
 
-	recipients_to_header_buf("To", &buf, &extra_to);
-	recipients_to_header_buf("Cc", &buf, &extra_cc);
-
+	rev.to_recipients = &extra_to;
+	rev.cc_recipients = &extra_cc;
 	rev.extra_headers = to_free = strbuf_detach(&buf, NULL);
 
 	if (from) {

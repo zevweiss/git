@@ -629,13 +629,30 @@ static void next_commentary_block(struct rev_info *opt, struct strbuf *sb)
 	opt->shown_dashes = 1;
 }
 
+static void recipients_to_header_buf(const char *hdr, struct strbuf *buf,
+				     const struct string_list *recipients)
+{
+	for (int i = 0; i < recipients->nr; i++) {
+		if (!i)
+			strbuf_addf(buf, "%s: ", hdr);
+		else
+			strbuf_addstr(buf, "    ");
+		strbuf_addstr(buf, recipients->items[i].string);
+		if (i + 1 < recipients->nr)
+			strbuf_addch(buf, ',');
+		strbuf_addch(buf, '\n');
+	}
+}
+
 void show_log(struct rev_info *opt)
 {
 	struct strbuf msgbuf = STRBUF_INIT;
+	struct strbuf hdrbuf = STRBUF_INIT;
 	struct log_info *log = opt->loginfo;
 	struct commit *commit = log->commit, *parent = log->parent;
 	int abbrev_commit = opt->abbrev_commit ? opt->abbrev : the_hash_algo->hexsz;
 	const char *extra_headers = opt->extra_headers;
+	char *to_free;
 	struct pretty_print_context ctx = {0};
 
 	opt->loginfo = NULL;
@@ -755,6 +772,15 @@ void show_log(struct rev_info *opt)
 		ctx.notes_message = strbuf_detach(&notebuf, NULL);
 	}
 
+	if (opt->to_recipients)
+		recipients_to_header_buf("To", &hdrbuf, opt->to_recipients);
+
+	if (opt->cc_recipients)
+		recipients_to_header_buf("Cc", &hdrbuf, opt->cc_recipients);
+
+	if (extra_headers)
+		strbuf_addstr(&hdrbuf, extra_headers);
+
 	/*
 	 * And then the pretty-printed message itself
 	 */
@@ -764,7 +790,7 @@ void show_log(struct rev_info *opt)
 	ctx.date_mode = opt->date_mode;
 	ctx.date_mode_explicit = opt->date_mode_explicit;
 	ctx.abbrev = opt->diffopt.abbrev;
-	ctx.after_subject = extra_headers;
+	ctx.after_subject = to_free = strbuf_detach(&hdrbuf, NULL);
 	ctx.preserve_subject = opt->preserve_subject;
 	ctx.encode_email_headers = opt->encode_email_headers;
 	ctx.reflog_info = opt->reflog_info;
@@ -813,6 +839,7 @@ void show_log(struct rev_info *opt)
 
 	strbuf_release(&msgbuf);
 	free(ctx.notes_message);
+	free(to_free);
 
 	if (cmit_fmt_is_mail(ctx.fmt) && opt->idiff_oid1) {
 		struct diff_queue_struct dq;
